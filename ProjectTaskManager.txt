@@ -1,0 +1,298 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+
+#define TASKS_FILE "tasks.txt"
+#define MAX_LINE_LENGTH 512
+
+typedef struct {
+    int id;
+    char title[100];
+    char description[256];
+    char location[100];
+    char due_date[20];
+    int completed;
+} Task;
+
+int load_tasks(Task tasks[], int max_tasks) {
+    FILE *file = fopen(TASKS_FILE, "r");
+    if (!file) {
+        return 0;
+    }
+
+    int count = 0;
+    while (fscanf(file, "%d|%99[^|]|%255[^|]|%99[^|]|%19[^|]|%d\n", &tasks[count].id, tasks[count].title, tasks[count].description, tasks[count].location, tasks[count].due_date, &tasks[count].completed) == 6) {
+        count++;
+        if (count >= max_tasks) {
+            break;
+        }
+    }
+
+    fclose(file);
+    return count;
+}
+
+void save_tasks(Task tasks[], int count) {
+    FILE *file = fopen(TASKS_FILE, "w");
+    if (!file) {
+        perror("Erreur lors de l'ouverture du fichier de sauvegarde");
+        return;
+    }
+
+    for (int i = 0; i < count; i++) {
+        fprintf(file, "%d|%s|%s|%s|%s|%d\n", tasks[i].id, tasks[i].title, tasks[i].description, tasks[i].location, tasks[i].due_date, tasks[i].completed);
+    }
+
+    fclose(file);
+}
+
+void create_task(const char *title, const char *description, const char *location, const char *due_date) {
+    Task tasks[100];
+    int count = load_tasks(tasks, 100);
+    int new_id = count > 0 ? tasks[count - 1].id + 1 : 1;
+
+    Task new_task = {new_id, "", "", "", "", 0};
+    strncpy(new_task.title, title, sizeof(new_task.title) - 1);
+    if (description) {
+        strncpy(new_task.description, description, sizeof(new_task.description) - 1);
+    }
+    if (location) {
+        strncpy(new_task.location, location, sizeof(new_task.location) - 1);
+    }
+    strncpy(new_task.due_date, due_date, sizeof(new_task.due_date) - 1);
+
+    tasks[count] = new_task;
+    count++;
+    save_tasks(tasks, count);
+
+    printf("Tâche %d créée.\n", new_id);
+}
+
+void update_task(int id, const char *title, const char *description, const char *location, const char *due_date, int completed) {
+    Task tasks[100];
+    int count = load_tasks(tasks, 100);
+    int found = 0;
+
+    for (int i = 0; i < count; i++) {
+        if (tasks[i].id == id) {
+            if (title) {
+                strncpy(tasks[i].title, title, sizeof(tasks[i].title) - 1);
+            }
+            if (description) {
+                strncpy(tasks[i].description, description, sizeof(tasks[i].description) - 1);
+            }
+            if (location) {
+                strncpy(tasks[i].location, location, sizeof(tasks[i].location) - 1);
+            }
+            if (due_date) {
+                strncpy(tasks[i].due_date, due_date, sizeof(tasks[i].due_date) - 1);
+            }
+            tasks[i].completed = completed;
+            found = 1;
+            break;
+        }
+    }
+
+    if (found) {
+        save_tasks(tasks, count);
+        printf("Tâche %d mise à jour.\n", id);
+    } else {
+        fprintf(stderr, "Tâche %d non trouvée.\n", id);
+    }
+}
+
+void delete_task(int id) {
+    Task tasks[100];
+    int count = load_tasks(tasks, 100);
+    int found = 0;
+
+    for (int i = 0; i < count; i++) {
+        if (tasks[i].id == id) {
+            for (int j = i; j < count - 1; j++) {
+                tasks[j] = tasks[j + 1];
+            }
+            count--;
+            found = 1;
+            break;
+        }
+    }
+
+    if (found) {
+        save_tasks(tasks, count);
+        printf("Tâche %d supprimée.\n", id);
+    } else {
+        fprintf(stderr, "Tâche %d non trouvée.\n", id);
+    }
+}
+
+void show_task(int id) {
+    Task tasks[100];
+    int count = load_tasks(tasks, 100);
+
+    for (int i = 0; i < count; i++) {
+        if (tasks[i].id == id) {
+            printf("ID: %d\nTitre: %s\nDescription: %s\nLocation: %s\nDate d'échéance: %s\nComplétée: %d\n",
+                   tasks[i].id, tasks[i].title, tasks[i].description, tasks[i].location, tasks[i].due_date, tasks[i].completed);
+            return;
+        }
+    }
+
+    fprintf(stderr, "Tâche %d non trouvée.\n", id);
+}
+
+void list_tasks(const char *date) {
+    Task tasks[100];
+    int count = load_tasks(tasks, 100);
+
+    printf("Tâches complétées:\n");
+    for (int i = 0; i < count; i++) {
+        if (strcmp(tasks[i].due_date, date) == 0 && tasks[i].completed) {
+            printf("ID: %d\nTitre: %s\nDescription: %s\nLocation: %s\nDate d'échéance: %s\nComplétée: %d\n",
+                   tasks[i].id, tasks[i].title, tasks[i].description, tasks[i].location, tasks[i].due_date, tasks[i].completed);
+        }
+    }
+
+    printf("\nTâches non complétées:\n");
+    for (int i = 0; i < count; i++) {
+        if (strcmp(tasks[i].due_date, date) == 0 && !tasks[i].completed) {
+            printf("ID: %d\nTitre: %s\nDescription: %s\nLocation: %s\nDate d'échéance: %s\nComplétée: %d\n",
+                   tasks[i].id, tasks[i].title, tasks[i].description, tasks[i].location, tasks[i].due_date, tasks[i].completed);
+        }
+    }
+}
+
+void search_task(const char *title) {
+    Task tasks[100];
+    int count = load_tasks(tasks, 100);
+    int found = 0;
+
+    for (int i = 0; i < count; i++) {
+        if (strstr(tasks[i].title, title)) {
+            printf("ID: %d\nTitre: %s\nDescription: %s\nLocation: %s\nDate d'échéance: %s\nComplétée: %d\n",
+                   tasks[i].id, tasks[i].title, tasks[i].description, tasks[i].location, tasks[i].due_date, tasks[i].completed);
+            found = 1;
+        }
+    }
+
+    if (!found) {
+        printf("Aucune tâche trouvée avec le titre '%s'.\n", title);
+    }
+}
+
+void show_help() {
+    printf("Usage: todo <commande> [options]\n");
+    printf("Commandes:\n");
+    printf("  create <titre> [--description <desc>] [--location <loc>] --due_date <YYYY-MM-DD>\n");
+    printf("  update <id> [--title <titre>] [--description <desc>] [--location <loc>] [--due_date <YYYY-MM-DD>] [--completed <0|1>]\n");
+    printf("  delete <id>\n");
+    printf("  show <id>\n");
+    printf("  list [--date <YYYY-MM-DD>]\n");
+    printf("  search <titre>\n");
+}
+
+int main(int argc, char *argv[]) {
+    if (argc < 2) {
+        time_t t = time(NULL);
+        struct tm tm = *localtime(&t);
+        char today[11];
+        snprintf(today, sizeof(today), "%d-%02d-%02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday);
+        list_tasks(today);
+        return 0;
+    }
+
+    const char *command = argv[1];
+
+    if (strcmp(command, "create") == 0) {
+        if (argc < 4) {
+            fprintf(stderr, "Usage: todo create <titre> --due_date <YYYY-MM-DD> [--description <desc>] [--location <loc>]\n");
+            return 1;
+        }
+        const char *title = argv[2];
+        const char *description = NULL;
+        const char *location = NULL;
+        const char *due_date = NULL;
+
+        for (int i = 3; i < argc; i++) {
+            if (strcmp(argv[i], "--description") == 0 && i + 1 < argc) {
+                description = argv[++i];
+            } else if (strcmp(argv[i], "--location") == 0 && i + 1 < argc) {
+                location = argv[++i];
+            } else if (strcmp(argv[i], "--due_date") == 0 && i + 1 < argc) {
+                due_date = argv[++i];
+            }
+        }
+
+        if (!due_date) {
+            fprintf(stderr, "La date d'échéance est requise.\n");
+            return 1;
+        }
+
+        create_task(title, description, location, due_date);
+    } else if (strcmp(command, "update") == 0) {
+        if (argc < 3) {
+            fprintf(stderr, "Usage: todo update <id> [--title <titre>] [--description <desc>] [--location <loc>] [--due_date <YYYY-MM-DD>] [--completed <0|1>]\n");
+            return 1;
+        }
+        int id = atoi(argv[2]);
+        const char *title = NULL;
+        const char *description = NULL;
+        const char *location = NULL;
+        const char *due_date = NULL;
+        int completed = -1;
+
+        for (int i = 3; i < argc; i++) {
+            if (strcmp(argv[i], "--title") == 0 && i + 1 < argc) {
+                title = argv[++i];
+            } else if (strcmp(argv[i], "--description") == 0 && i + 1 < argc) {
+                description = argv[++i];
+            } else if (strcmp(argv[i], "--location") == 0 && i + 1 < argc) {
+                location = argv[++i];
+            } else if (strcmp(argv[i], "--due_date") == 0 && i + 1 < argc) {
+                due_date = argv[++i];
+            } else if (strcmp(argv[i], "--completed") == 0 && i + 1 < argc) {
+                completed = atoi(argv[++i]);
+            }
+        }
+
+        update_task(id, title, description, location, due_date, completed);
+    } else if (strcmp(command, "delete") == 0) {
+        if (argc < 3) {
+            fprintf(stderr, "Usage: todo delete <id>\n");
+            return 1;
+        }
+        int id = atoi(argv[2]);
+        delete_task(id);
+    } else if (strcmp(command, "show") == 0) {
+        if (argc < 3) {
+            fprintf(stderr, "Usage: todo show <id>\n");
+            return 1;
+        }
+        int id = atoi(argv[2]);
+        show_task(id);
+    } else if (strcmp(command, "list") == 0) {
+        const char *date = NULL;
+        if (argc > 2 && strcmp(argv[2], "--date") == 0 && argc > 3) {
+            date = argv[3];
+        }
+        if (!date) {
+            time_t t = time(NULL);
+            struct tm tm = *localtime(&t);
+            static char today[11];
+            snprintf(today, sizeof(today), "%d-%02d-%02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday);
+            date = today;
+        }
+        list_tasks(date);
+    } else if (strcmp(command, "search") == 0) {
+        if (argc < 3) {
+            fprintf(stderr, "Usage: todo search <titre>\n");
+            return 1;
+        }
+        const char *title = argv[2];
+        search_task(title);
+    } else {
+        show_help();
+    }
+
+    return 0;
+}
